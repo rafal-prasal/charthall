@@ -175,14 +175,24 @@ def cache_render_chart(_cache, _chart):
     )
 
 def cache_render(_cache):
-        
+
+    if len( _cache['yaml_chart'].values())==0: 
+
+        _cache['yaml']="""---
+apiVersion: v1
+entries: {}"""
+
+        _cache['json']="{}"
+
+        return
+
     _cache['yaml']="""---
 apiVersion: v1
 entries:
 {list}""" .format(
         list="".join(
             _cache['yaml_chart'].values()
-            )
+        )
     )
 
     list=[]
@@ -192,7 +202,7 @@ entries:
     _cache['json']='{{{list}}}' .format(
         list=",".join(
             list
-            )
+        )
     )
 
 def cache_rebuild_repo_charts(_repo):
