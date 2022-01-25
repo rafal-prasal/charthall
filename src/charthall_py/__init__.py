@@ -416,7 +416,7 @@ def request_head_api_repo_charts_chart_version(_repo, _chart, _version):
 
 def request_get_api_repo_charts(_repo):
     if _repo not in CACHE['index']:        
-        return ('{"error":"repo not found"}', 404)
+        return ('{}', 200)
 
     return CACHE['index'][_repo]['json']
 
@@ -522,7 +522,10 @@ def app_build():
             return _response
         
         if _repo not in CACHE['index']:
-            return ('', 404)
+            return ("""---
+apiVersion: v1
+entries: {}
+""", 200)
 
         return CACHE['index'][_repo]['yaml']
 
