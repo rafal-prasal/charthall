@@ -307,7 +307,7 @@ def request_post_api_repo_charts(_repo, _req_chart, _req_prov):
     finally:
         CACHE['mutexes'][_repo].release()
             
-    return '{"saved":true}'
+    return ('{"saved":true}', 201)
 
 def request_get_repo_charts_file(_repo, _file):
     try:
