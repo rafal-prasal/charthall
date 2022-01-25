@@ -485,7 +485,7 @@ def app_build():
     def route_get_health():
         @after_this_request
         def add_header(_response):
-            _response.headers['Content-Type']='Content-Type: application/json; charset=utf-8'
+            _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
         return '{"healthy":true}'
@@ -507,7 +507,7 @@ def app_build():
     def route_get_info():
         @after_this_request
         def add_header(_response):
-            _response.headers['Content-Type']='Content-Type: application/json; charset=utf-8'
+            _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
         return CACHE['info']
@@ -542,7 +542,7 @@ def app_build():
     def route_api_repo_charts(_repo):
         @after_this_request
         def add_header(_response):
-            _response.headers['Content-Type']='Content-Type: application/json; charset=utf-8'
+            _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
         if request.method == 'GET':
@@ -556,7 +556,7 @@ def app_build():
     def route_POST_api_repo_charts(_repo):
         @after_this_request
         def add_header(_response):
-            _response.headers['Content-Type']='Content-Type: application/json; charset=utf-8'
+            _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
         if request.method == 'POST':
@@ -578,7 +578,7 @@ def app_build():
     def route_api_repo_charts_chart(_repo,_chart):
         @after_this_request
         def add_header(_response):
-            _response.headers['Content-Type']='Content-Type: application/json; charset=utf-8'
+            _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
         if request.method == 'GET':
