@@ -324,7 +324,7 @@ def request_get_repo_charts_file(_repo, _file):
         mimetype='text/plain; charset=utf-8'
 
         if _file.endswith('.tgz'):
-            mimetype='application/tar+gzip'
+            mimetype='application/x-tar'
 
         file_path=os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo, _file)        
         
