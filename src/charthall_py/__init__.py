@@ -543,10 +543,6 @@ entries: {}
     @app.route('/<_repo>/charts/<_file>', methods=['GET'])
     @auth.login_required(optional=allow_anonymous_get)
     def route_repo_charts_file(_repo,_file):
-        @after_this_request
-        def add_header(_response):
-            _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
-            return _response
 
         return request_get_repo_charts_file(_repo, _file)
 
