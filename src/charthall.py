@@ -26,11 +26,10 @@ if __name__ == "__main__":
                 _auth_anonymous_get=os.getenv('AUTH_ANONYMOUS_GET'),
                 _allow_overwrite=os.getenv('ALLOW_OVERWRITE'),
                 _chart_url=os.getenv('CHART_URL'),
-
-        #do not do anything
-                _storage=os.getenv('STORAGE'),
                 _cache_interval=os.getenv('CACHE_INTERVAL'),
-                _depth=os.getenv('DEPTH')
+        #do not do anything
+                _storage=os.getenv('STORAGE'),   #ALWAYS =LOCAL             
+                _depth=os.getenv('DEPTH')        #ALWAYS =1
             )
         ),
         port=port,

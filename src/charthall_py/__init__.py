@@ -6,6 +6,8 @@ import sys
 import io
 import datetime
 import distutils
+import threading
+import time
 
 from threading import Lock
 
@@ -15,8 +17,7 @@ from werkzeug.datastructures import Headers
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 
-
-CHARTHALL_VERSION="0.0.1"
+CHARTHALL_VERSION="0.0.2"
 
 CHARTHALL_STORAGE='local'
 CHARTHALL_STORAGE_LOCAL_ROOTDIR='/data/storage'
@@ -47,6 +48,16 @@ RE_VERSION=re.compile('([0-9]+\.){2,}[0-9]+')
 
 MUTEX = Lock()
 
+def log_print(_type, _msg):
+    print(
+        '[{stamp}] [{type}] {msg}'.format(
+        #[25/Jan/2022:11:48:46 +0000]
+            stamp=datetime.datetime.now().strftime("%d/%B/%Y:%H:%M:%S %z"),
+            type=_type,
+            msg=_msg
+        )
+    )
+
 def extract_name_version(_filename):
     parts=_filename.split('-')
 
@@ -71,14 +82,14 @@ def extract_name_version(_filename):
 def cache_rebuild():
     repos=os.listdir(CHARTHALL_STORAGE_LOCAL_ROOTDIR)
     
-    print('>cache_rebuild()')
-    for p in repos:
-        if os.path.isdir(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, p)):
-            print('>>'+p)
-            cache_add_repo(p)
-            cache_rebuild_repo_charts(p)
-            print('<<'+p)
-    print('<cache_rebuild()')
+    log_print('INFO', 'Rebuilding Cache start')
+    for r in repos:
+        if os.path.isdir(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, r)):
+            cache_add_repo(r)
+            CACHE['mutexes'][r].acquire()
+            cache_rebuild_repo_charts(r)
+            CACHE['mutexes'][r].release()
+    log_print('INFO', 'Rebuilding Cache finish')
     
 def cache_add_repo(_repo):
 
@@ -112,17 +123,17 @@ repos:
 
     MUTEX.release()
 
-def cache_render_chart_version(_repo, _data):    
+def cache_render_chart_version(_cache, _repo, _data):
     global CHARTHALL_CHART_URL
 
     c=_data['chart']
     v=_data['version']
 
-    if c not in CACHE['index'][_repo]['yaml_chart_version']:
-        CACHE['index'][_repo]['yaml_chart_version'][c]={}
-        CACHE['index'][_repo]['json_chart_version'][c] = {}
+    if c not in _cache['yaml_chart_version']:
+        _cache['yaml_chart_version'][c]={}
+        _cache['json_chart_version'][c] = {}
     
-    CACHE['index'][_repo]['yaml_chart_version'][ c ][ v ]="""  - apiVersion: v1
+    _cache['yaml_chart_version'][ c ][ v ]="""  - apiVersion: v1
     name: {chart}
     version: {version}
     urls:
@@ -137,7 +148,7 @@ def cache_render_chart_version(_repo, _data):
         repo=_repo
     )
 
-    CACHE['index'][_repo]['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v2", "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v2", "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
@@ -146,50 +157,49 @@ def cache_render_chart_version(_repo, _data):
         repo=_repo        
     )
 
-def cache_render_chart(_repo, _chart):
+def cache_render_chart(_cache, _chart):
 
-    CACHE['index'][_repo]['yaml_chart'][ _chart ]="""  {chart}:
+    _cache['yaml_chart'][ _chart ]="""  {chart}:
 {list}""".format(
         chart=_chart,
         list="".join(
-            CACHE['index'][_repo]['yaml_chart_version'][_chart].values()
+            _cache['yaml_chart_version'][_chart].values()
         )
     )
 
-    CACHE['index'][_repo]['json_chart'][ _chart ]='[{list}]'.format(
+    _cache['json_chart'][ _chart ]='[{list}]'.format(
         chart=_chart,
         list=",".join(
-            CACHE['index'][_repo]['json_chart_version'][_chart].values()
+            _cache['json_chart_version'][_chart].values()
         )
     )
 
-def cache_render(_repo):
+def cache_render(_cache):
         
-    CACHE['index'][_repo]['yaml']="""---
+    _cache['yaml']="""---
 apiVersion: v1
 entries:
 {list}""" .format(
         list="".join(
-            CACHE['index'][_repo]['yaml_chart'].values()
+            _cache['yaml_chart'].values()
             )
-    ) 
+    )
 
     list=[]
-    for c in CACHE['index'][_repo]['json_chart']:
-        list.append( '"'+c+'": '+CACHE['index'][_repo]['json_chart'][c])
+    for c in _cache['json_chart']:
+        list.append( '"'+c+'": '+_cache['json_chart'][c])
 
-
-    CACHE['index'][_repo]['json']='{{{list}}}' .format(
+    _cache['json']='{{{list}}}' .format(
         list=",".join(
             list
             )
     )
 
-def cache_rebuild_repo_charts(_repo):        
+def cache_rebuild_repo_charts(_repo):
     repo_path = os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo )
     files=os.listdir(repo_path)
     
-    CACHE['index'][_repo] = {
+    cache= {
         'yaml_chart_version':{},
         'yaml_chart':{},        
         'yaml':'---',
@@ -221,38 +231,40 @@ def cache_rebuild_repo_charts(_repo):
 
         data['filename'] = f
 
-        cache_render_chart_version(_repo, data)
+        cache_render_chart_version(cache, _repo, data)
 
-    for c in CACHE['index'][_repo]['yaml_chart_version']:
-        cache_render_chart(_repo, c)
+    for c in cache['yaml_chart_version']:
+        cache_render_chart(cache, c)
     
-    cache_render(_repo)
+    cache_render(cache)
+
+    CACHE['index'][_repo]=cache
                     
-def put_file(_repo, _extension, _reqfile):
+def put_file(_repo, _extension, _req_file):
     global CHARTHALL_ALLOW_OVERWRITE
     
-    if _reqfile is None:
+    if _req_file is None:
         return
 
-    basename=os.path.basename(_reqfile.filename)
+    basename=os.path.basename(_req_file.filename)
     data=extract_name_version(basename.replace(_extension,''))
-    
-    if CHARTHALL_ALLOW_OVERWRITE == False \
-        and _repo in CACHE['index'] \
-        and data['chart'] in CACHE['index'][_repo]['json_chart_version'] \
-        and data['version'] in CACHE['index'][_repo]['json_chart_version'][ data['chart'] ]:
-        raise Exception("chart overwriting not allowed")
 
     repo_dir = os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR,_repo)
     filename=os.path.join(repo_dir,basename)
 
+    if CHARTHALL_ALLOW_OVERWRITE == False \
+        and _repo in CACHE['index'] \
+        and data['chart'] in CACHE['index'][_repo]['json_chart_version'] \
+        and data['version'] in CACHE['index'][_repo]['json_chart_version'][ data['chart'] ]:
+        raise Exception("chart overwriting not allowed "+filename)
+
     if not filename.endswith(_extension):
-        raise Exception('incorrect extension')
+        raise Exception('incorrect extension('+_extension+') '+basename)
 
     if data['version']=='':
-        raise Exception('non semantic versioning')
+        raise Exception('non semantic versioning '+basename)
 
-    _reqfile.save(filename)    
+    _req_file.save(filename)    
 
     data['filename']=basename
 
@@ -264,9 +276,9 @@ def put_file(_repo, _extension, _reqfile):
     return data
 
 ################ REQUESTS ################
-def request_post_api_repo_charts(_repo, _reqchart, _reqprov):
+def request_post_api_repo_charts(_repo, _req_chart, _req_prov):
             
-    if _reqchart is None:
+    if _req_chart is None:
         return ('{"saved":false}', 400)
     
     try:
@@ -274,13 +286,23 @@ def request_post_api_repo_charts(_repo, _reqchart, _reqprov):
         
         CACHE['mutexes'][_repo].acquire()
 
-        data=put_file(_repo, '.tgz', _reqchart)
-        put_file(_repo, '.prov', _reqprov)
+        cache=CACHE['index'][_repo]
+
+        data=put_file(_repo, '.tgz', _req_chart)
+        if _req_prov is not None:
+            put_file(_repo, '.prov', _req_prov)
         
-        cache_render_chart_version(_repo, data)
-        cache_render_chart(_repo, data['chart'])
-        cache_render(_repo)        
+        cache_render_chart_version(cache, _repo, data)
+        cache_render_chart(cache, data['chart'])
+        cache_render(cache)
+        
     except Exception as e:
+        log_print(
+            'ERROR', 'request_post_api_repo_charts({repo}): {msg}'.format(
+                repo=_repo,
+                msg=str(e)
+            )
+        )
         return('{"saved":false}', 400)
     finally:
         CACHE['mutexes'][_repo].release()
@@ -305,42 +327,78 @@ def request_get_repo_charts_file(_repo, _file):
             )
 
     except Exception as e:
+        log_print(
+            'ERROR',
+            'request_get_repo_charts_file({repo}, {file}): {msg}'.format(
+                repo=_repo,
+                file=_file,
+                msg=str(e)
+            )
+        )
         return str(e),404
 
 def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
     if _repo not in CACHE['index']:
-        return ('{"deleted":false}', 404 )
-
-    if _chart not in CACHE['index'][_repo]['json_chart_version']:
-        return ('{"deleted":false}', 404 )
-    
-    if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
+        log_print(
+            'WARNING', 
+            'request_delete_api_repo_charts_chart_version({repo}, {chart}, {version}): repo() does not exist'.format(
+                repo=_repo,
+                chart=_chart,
+                version=_version
+            )
+        )
         return ('{"deleted":false}', 404 )
     
     CACHE['mutexes'][_repo].acquire()
 
     try: 
-        try:
+        if _chart not in CACHE['index'][_repo]['json_chart_version']:        
+            raise Exception('chart not in repo')
+    
+        if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
+            raise Exception('version not in chart in project')
+
+        try:            
             os.remove(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo, _chart+'-'+_version+'.tgz'))
             os.remove(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo, _chart+'-'+_version+'.prov'))
-        except:
+        except Exception as e:
+            log_print(
+                'WARNING', 
+                'request_delete_api_repo_charts_chart_version({repo}, {chart}, {version}): {msg}'.format(
+                    repo=_repo,
+                    chart=_chart,
+                    version=_version,
+                    msg=str(e)
+                )
+            )
             pass
 
-        del CACHE['index'][_repo]['yaml_chart_version'][_chart][_version]
-        del CACHE['index'][_repo]['json_chart_version'][_chart][_version]
+        cache= CACHE['index'][_repo]
 
-        if len(CACHE['index'][_repo]['yaml_chart_version'][_chart]) == 0:
-            del CACHE['index'][_repo]['yaml_chart_version'][_chart]
-            del CACHE['index'][_repo]['yaml_chart'][_chart]
-            del CACHE['index'][_repo]['json_chart_version'][_chart]
-            del CACHE['index'][_repo]['json_chart'][_chart]
+        del cache['yaml_chart_version'][_chart][_version]
+        del cache['json_chart_version'][_chart][_version]
 
-        cache_render_chart(_repo, _chart)
-        cache_render(_repo)
+        if len(cache['yaml_chart_version'][_chart]) == 0:
+            del cache['yaml_chart_version'][_chart]
+            del cache['yaml_chart'][_chart]
+            del cache['json_chart_version'][_chart]
+            del cache['json_chart'][_chart]
+
+        cache_render_chart(cache, _repo, _chart)
+        cache_render(cache)
 
         return '{"deleted":true}'
-    except:
-        return '{"deleted":false}'
+
+    except Exception as e:
+        log_print(
+            'request_delete_api_repo_charts_chart_version({repo}, {chart}, {version}): {msg}'.format(
+                repo=_repo,
+                chart=_chart,
+                version=_version,
+                msg=str(e)
+            )
+        )
+        return ('{"deleted":false}', 404 )
     finally:    
         CACHE['mutexes'][_repo].release()
 
@@ -358,7 +416,7 @@ def request_head_api_repo_charts_chart_version(_repo, _chart, _version):
 
 def request_get_api_repo_charts(_repo):
     if _repo not in CACHE['index']:        
-        return ('{"error":"chart not found"}', 404)
+        return ('{"error":"repo not found"}', 404)
 
     return CACHE['index'][_repo]['json']
 
@@ -371,7 +429,7 @@ def request_get_api_repo_charts_chart_version(_repo, _chart, _version):
         return ('{"error":"chart not found in repo"}', 404)
     
     if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
-        return ('{"error":"version not found in chart in repo"}', 404)
+        return ('{"error":"repo,chart,version"}', 404)
         
     return CACHE['index'][_repo]['json_chart_version'][_chart][_version]
 
@@ -502,15 +560,15 @@ def app_build():
             return _response
 
         if request.method == 'POST':
-            reqchart=None
+            req_chart=None
             if CHARTHALL_CHART_POST_FORM_FIELD_NAME in request.files:
-                reqchart=request.files[CHARTHALL_CHART_POST_FORM_FIELD_NAME]
+                req_chart=request.files[CHARTHALL_CHART_POST_FORM_FIELD_NAME]
 
-            reqprov=None
+            req_prov=None
             if CHARTHALL_PROV_POST_FORM_FIELD_NAME in request.files:
-                reqprov=request.files[CHARTHALL_PROV_POST_FORM_FIELD_NAME]
+                req_prov=request.files[CHARTHALL_PROV_POST_FORM_FIELD_NAME]
 
-            return request_post_api_repo_charts(_repo, reqchart, reqprov)
+            return request_post_api_repo_charts(_repo, req_chart, req_prov)
 
         return ( '{"error":"unknown method"}', 400 )
 
@@ -561,6 +619,21 @@ def app_build():
 
     return app
 
+def rebuild_cache_on_timer():
+
+    sleep_time=0
+
+    try:
+        sleep_time=int(CHARTHALL_CACHE_INTERVAL.replace('m',''))*60
+    except:
+        log_print('WARNING', 'CACHE_INTERVAL not set or not an integer, assuming no CACHE_REBUILD')
+        pass
+
+        
+    while sleep_time>0:
+        time.sleep(sleep_time)
+        cache_rebuild()
+
 def create_app(
         _storage=None, 
         _storage_local_rootdir=None, 
@@ -593,8 +666,8 @@ def create_app(
     if _chart_post_form_field_name is not None:
         CHARTHALL_CHART_POST_FORM_FIELD_NAME=_chart_post_form_field_name
 
-    if _chart_post_form_field_name is not None:
-        CHARTHALL_PROV_POST_FORM_FIELD_NAME=_chart_post_form_field_name
+    if _prov_post_form_field_name is not None:
+        CHARTHALL_PROV_POST_FORM_FIELD_NAME=_prov_post_form_field_name
 
     if _chart_url is not None:
         CHARTHALL_CHART_URL = _chart_url
@@ -620,5 +693,8 @@ def create_app(
 
     cache_rebuild()
     app_build()
+
+    rebuild_cache_thread = threading.Thread(target=rebuild_cache_on_timer)
+    rebuild_cache_thread.start()
 
     return app

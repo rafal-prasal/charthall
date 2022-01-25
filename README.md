@@ -1,4 +1,4 @@
-# ChartHall 0.0.1
+# ChartHall 0.0.2
 
 To some extent it is replacement to chartmuseum, which is great piece of software, but unfortunately has its flaws and limitations.
 
@@ -8,11 +8,11 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 - really quick start
 - scales well with growing number of charts in repos
   - single repo
-    - POST /**repo**/charts 
+    - POST /{repo}/charts 
       - concurency=1
         - 200 charts: ~30/s
         - 130k charts: ~20/s
-    - GET /**repo**/index.yaml 
+    - GET /{repo}/index.yaml 
       - concurency=1
         - 200 charts, 37k, ~550/s, 20MB/s
         - 130k charts, 28MB, ~0.7s, 20MB/s
@@ -30,13 +30,13 @@ Code found here is like "Cutting the grass with machete" and definitely could be
     - ALLOW_OVERWRITE
     - CHART_POST_FORM_FIELD_NAME
     - PROV_POST_FORM_FIELD_NAME
+    - CACHE_INTERVAL
 
 **Downdsides**
 - handles only environmental variables
 - works only as a single replica
 - supports only local storage (STORAGE=local)
 - only single path level for repo is allowed (DEPTH=1)
-- will not see any changes done directly in the data directory
 - compatible, but probably not fully compliant with semantic versioning, silently ignores noncompliant files
 - relies solely on filenames and does not provide any additional data in index.yaml and other api calls
 
@@ -44,7 +44,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 
 ### building image image
 
-    docker build -t charthall:0.0.1 .
+    docker build -t charthall:latest .
 
 ### creating data directory
 
@@ -57,7 +57,16 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -d \
         -p 8080:8080 \
         -v /path/to/data/directory:/charthall_data \
-        charthall:0.0.1
+        charthall:latest
+
+### with rebuilding of cache with internal of 10m
+    docker run \
+        -d \
+        -p 8080:8080 \
+        -v /path/to/data/directory:/charthall_data \
+        -e CACHE_INTERVAL=10m \
+        charthall:latest
+
             
 ### with basic authentication
 
@@ -67,7 +76,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -e BASIC_AUTH_USER=myuser \
         -e BASIC_AUTH_PASS=mypassword \
         -v /path/to/data/directory:/charthall_data \
-        charthall:0.0.1
+        charthall:latest
 
 ### when basic authentication needed only for chart manipulation
         docker run \
@@ -77,7 +86,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -e BASIC_AUTH_PASS=mypassword \
         -e AUTH_ANONYMOUS_GET=true \
         -v /path/to/data/directory:/charthall_data \
-        charthall:0.0.1
+        charthall:latest
 
 ### when youd dissallow overwrite of chars and prov files
     docker run \
@@ -85,7 +94,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -p 8080:8080 \
         -e ALLOW_OVERWRITE=false \
         -v /path/to/data/directory:/charthall_data \
-        charthall:0.0.1
+        charthall:latest
 
 ### when you want to change form fields for posting chart and prov file
     docker run \
@@ -94,7 +103,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -e CHART_POST_FORM_FIELD_NAME=chart_field \
         -e PROV_POST_FORM_FIELD_NAME=prov_field \
         -v /path/to/data/directory:/charthall_data \
-        charthall:0.0.1
+        charthall:latest
 
 ### when you hide charthall behind a reverse proxy
     docker run \
@@ -102,7 +111,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -p 8080:8080 \        
         -e CHART_URL=http://reverse-proxy/context-path \
         -v /path/to/data/directory:/charthall_data \
-        charthall:0.0.1
+        charthall:latest
 
 ### use helm
 adding repository
@@ -138,7 +147,7 @@ name and version of the application
 
 output:
     
-    {"version":"v0.0.1"}
+    {"version":"v0.0.2"}
 
 ### GET /health
 information about health of service, no basic authentication check here
@@ -151,7 +160,7 @@ output:
     {"healthy":true}
 
 
-### GET /**repo**/index.yaml
+### GET /{repo}/index.yaml
 index.yaml file used by helm. provides only minimal set of inforation needed by helm to obtain the chart. environmental variable CHART_URL is a prefix for urls here.
 
     curl http://localhost:8080/myrepo/index.yaml
@@ -188,20 +197,19 @@ output:
 
     created: 2022-01-22T11:33:58.449085Z
 
-### GET /**repo**/charts/**chart**-**version**.tgz
+### GET /{repo}/charts/{chart}-{version}.tgz
 provides a helm chart file to helm when helm fetch is executed
 
-### GET /**repo**/charts/**chart**-**version**.trov
+### GET /{repo}/charts/{chart}-{version}.trov
 provides a prov file to helm
 
-### GET /api/**repo**/charts
+### GET /api/{repo}/charts
 provides list of charts in repo using json as an output
 
     curl -u http://localhost:8080/api/myrepo/charts
 
     curl -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" http://localhost:8080/api/myrepo/charts
 
-    
 output:
 
     {
@@ -248,7 +256,7 @@ output:
         ]
     }
 
-### GET /api/**repo**/charts/**chart**
+### GET /api/{repo}/charts/{chart}
 provides list of versions of **chart** in **repo** using json as an output
 
     curl -u http://localhost:8080/api/myrepo/charts/mychart
@@ -279,7 +287,7 @@ output:
 
     ]
 
-### GET /api/**repo**/charts/**chart**/**version**
+### GET /api/{repo}/charts/{chart}/{version}
 describes particular **version** of **chart** in **repo** using json as an output
 
     curl http://localhost:8080/api/myrepo/charts/mychart/0.0.1
@@ -299,7 +307,7 @@ output:
         "created:": "2022-01-22T11:33:58.449085Z"
     }
 
-### POST /api/**repo**/charts
+### POST /api/{repo}/charts
 adds **chart** with **prov** file to the repo. if **repo** does not exist it will create it on the spot
 
     curl \
@@ -323,7 +331,7 @@ output:
 
     { "saved": false }
 
-### DELETE /api/**repo**/charts/**chart**/**version**
+### DELETE /api/{repo}/charts/{chart}/{version}
 removes **chart** archive and prov file for particular **version** from **repo**. if **chart** will stay with no **version** then it will also remove it.
 
     curl \
