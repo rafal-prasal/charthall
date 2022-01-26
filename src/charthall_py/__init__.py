@@ -137,23 +137,25 @@ def cache_render_chart_version(_cache, _repo, _data):
     _cache['yaml_chart_version'][ c ][ v ]="""  - apiVersion: v1
     name: {chart}
     version: {version}
+    appVersion: {version}
     urls:
     - {chart_url}/{repo}/charts/{filename}
+    dependencies: []
     created: {created}
 """.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
-        created=_data['created'],
+        created=_data['created_yaml'],
         chart_url=CHARTHALL_CHART_URL,
         repo=_repo
     )
 
-    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v2", "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v1", "appVersion": "{version}", "dependencies": [], "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
-        created=_data['created'],
+        created=_data['created_json'],
         chart_url=CHARTHALL_CHART_URL,
         repo=_repo        
     ) 
@@ -279,10 +281,17 @@ def put_file(_repo, _extension, _req_file):
 
     data['filename']=basename
 
-    data['created']=datetime.datetime.fromtimestamp(
-        os.lstat(filename).st_ctime,
-        tz=datetime.timezone.utc
+    os_lstat_st_ctime=os.lstat(filename).st_ctime
+
+    data['created_yaml']=datetime.datetime.fromtimestamp(
+        os_lstat_st_ctime,
+        tz=datetime.timezone.utc        
     ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    data['created_json']=datetime.datetime.fromtimestamp(
+        os_lstat_st_ctime,
+        tz=datetime.timezone.utc        
+    ).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
 
     return data
 
