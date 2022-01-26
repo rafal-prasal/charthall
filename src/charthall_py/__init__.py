@@ -301,7 +301,7 @@ def request_post_api_repo_charts(_repo, _req_chart, _req_prov):
 
         data=put_file(_repo, '.tgz', _req_chart)
         if _req_prov is not None:
-            put_file(_repo, 'tgz.prov', _req_prov)
+            put_file(_repo, '.tgz.prov', _req_prov)
         
         cache_render_chart_version(cache, _repo, data)
         cache_render_chart(cache, data['chart'])
