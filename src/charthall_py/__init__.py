@@ -395,13 +395,14 @@ def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
             del cache['json_chart_version'][_chart]
             del cache['json_chart'][_chart]
 
-        cache_render_chart(cache, _repo, _chart)
+        cache_render_chart(cache, _chart)
         cache_render(cache)
 
         return '{"deleted":true}'
 
     except Exception as e:
         log_print(
+            'WARNING',
             'request_delete_api_repo_charts_chart_version({repo}, {chart}, {version}): {msg}'.format(
                 repo=_repo,
                 chart=_chart,
