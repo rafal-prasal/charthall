@@ -138,10 +138,13 @@ def cache_render_chart_version(_cache, _repo, _data):
     name: {chart}
     version: {version}
     appVersion: {version}
+    digest: "abcd0123456789"
+    description: ""
     urls:
     - {chart_url}/{repo}/charts/{filename}
     dependencies: []
-    created: {created}
+    created: "{created}"
+    serverInfo: {{}}
 """.format(
         chart=_data['chart'],
         version=_data['version'],
@@ -151,7 +154,7 @@ def cache_render_chart_version(_cache, _repo, _data):
         repo=_repo
     )
 
-    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v1", "appVersion": "{version}", "dependencies": [], "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v1", "home": "https://home.com", "maintainers": [ {{ "name": "maintainer", "email": "maintainer@maintainers.org" }} ], "icon" :"", "digest": "abcd0123456789", "description": "description", "appVersion": "{version}", "dependencies": [], "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
@@ -366,7 +369,7 @@ def request_get_repo_charts_file(_repo, _file):
                 msg=str(e)
             )
         )
-        return str(e),404
+        return '{"error": "not found"}',404,{ 'Content-Type':'application/json; charset=utf-8'}
 
 def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
     if _repo not in CACHE['index']:
@@ -572,7 +575,7 @@ entries: {}
     def route_repo_charts_file(_repo,_file):
         @after_this_request
         def add_header(_response):            
-            _response.headers['X-Request-Id'] = current_request_id()
+            _response.headers['X-Request-Id'] = current_request_id()            
             return _response
 
         return request_get_repo_charts_file(_repo, _file)
