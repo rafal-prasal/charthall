@@ -131,7 +131,7 @@ def cache_render_chart_version(_cache, _repo, _data):
     v=_data['version']
 
     if c not in _cache['yaml_chart_version']:
-        _cache['yaml_chart_version'][c]={}
+        _cache['yaml_chart_version'][c] = {}
         _cache['json_chart_version'][c] = {}
     
     _cache['yaml_chart_version'][ c ][ v ]="""  - apiVersion: v1
@@ -156,7 +156,7 @@ def cache_render_chart_version(_cache, _repo, _data):
         created=_data['created'],
         chart_url=CHARTHALL_CHART_URL,
         repo=_repo        
-    )
+    ) 
 
 def cache_render_chart(_cache, _chart):
 
@@ -417,13 +417,13 @@ def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
 
 def request_head_api_repo_charts_chart_version(_repo, _chart, _version):
     if _repo not in CACHE['index']:
-        return ('{"error":"repo not found"}', 404)
+        return ('{{"error":"{repo} not found"}}'.format(repo=_repo), 404)
 
     if _chart not in CACHE['index'][_repo]['json_chart_version']:
-        return ('{"error":"chart not found in repo"}', 404)
+        return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
     
     if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
-        return ('{"error":"version not found in chart in repo"}', 404)
+        return ('{{"error":"{repo}/{chart}-{version} not found"}}'.format(repo=_repo, chart=_chart, version=_version), 404)
 
     return ('{}', 200)
 
@@ -434,25 +434,24 @@ def request_get_api_repo_charts(_repo):
     return CACHE['index'][_repo]['json']
 
 def request_get_api_repo_charts_chart_version(_repo, _chart, _version):
-
     if _repo not in CACHE['index']:
-        return ('{"error":"repo not found"}', 404)
+        return ('{{"error":"{repo} not found"}}'.format(repo=_repo), 404)
 
     if _chart not in CACHE['index'][_repo]['json_chart_version']:
-        return ('{"error":"chart not found in repo"}', 404)
+        return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
     
     if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
-        return ('{"error":"repo,chart,version"}', 404)
+        return ('{{"error":"{repo}/{chart}-{version} not found"}}'.format(repo=_repo, chart=_chart, version=_version), 404)
         
     return CACHE['index'][_repo]['json_chart_version'][_chart][_version]
 
-def request_get_api_repo_charts_chart(_repo,_chart):
-    if _repo not in CACHE['index']:        
-        return ('{"error":"repo not found"}', 404)
+def request_get_api_repo_charts_chart(_repo, _chart):
+    if _repo not in CACHE['index']:
+        return ('{{"error":"{repo} not found"}}'.format(repo=_repo), 404)
 
-    if _chart not in CACHE['index'][_repo]['json_chart']:        
-        return ('{"error":"chart not found"}', 404)
-
+    if _chart not in CACHE['index'][_repo]['json_chart_version']:
+        return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
+    
     return CACHE['index'][_repo]['json_chart'][_chart]
 
 ################ ROUTES ################
