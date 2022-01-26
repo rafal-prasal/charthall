@@ -301,7 +301,7 @@ def request_post_api_repo_charts(_repo, _req_chart, _req_prov):
 
         data=put_file(_repo, '.tgz', _req_chart)
         if _req_prov is not None:
-            put_file(_repo, '.prov', _req_prov)
+            put_file(_repo, 'tgz.prov', _req_prov)
         
         cache_render_chart_version(cache, _repo, data)
         cache_render_chart(cache, data['chart'])
@@ -371,7 +371,7 @@ def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
 
         try:            
             os.remove(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo, _chart+'-'+_version+'.tgz'))
-            os.remove(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo, _chart+'-'+_version+'.prov'))
+            os.remove(os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo, _chart+'-'+_version+'.tgz.prov'))
         except Exception as e:
             log_print(
                 'WARNING', 
@@ -394,8 +394,9 @@ def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
             del cache['yaml_chart'][_chart]
             del cache['json_chart_version'][_chart]
             del cache['json_chart'][_chart]
+        else:
+            cache_render_chart(cache, _chart)
 
-        cache_render_chart(cache, _chart)
         cache_render(cache)
 
         return '{"deleted":true}'
