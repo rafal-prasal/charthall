@@ -236,11 +236,17 @@ def cache_rebuild_repo_charts(_repo):
 
         if data is not None and data['version'] == '':
             continue
-                                
-        data['created']=datetime.datetime.fromtimestamp(
+
+        os_lstat_st_ctime=os.lstat(file_path).st_ctime
+        data['created_yaml']=datetime.datetime.fromtimestamp(
             os.lstat(file_path).st_ctime,
             tz=datetime.timezone.utc
         ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+        data['created_json']=datetime.datetime.fromtimestamp(
+            os_lstat_st_ctime,
+            tz=datetime.timezone.utc        
+        ).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
 
         data['filename'] = f
 
