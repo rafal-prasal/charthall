@@ -12,6 +12,7 @@ import time
 from threading import Lock
 
 from flask import Flask, after_this_request, request, send_file
+from flask_log_request_id import RequestID, current_request_id
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.datastructures import Headers
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -459,6 +460,7 @@ def app_build():
     global auth
 
     app = Flask(__name__)
+    RequestID(app)
     auth = HTTPBasicAuth()
 
     global CHARTHALL_BASIC_AUTH_USER
@@ -495,6 +497,7 @@ def app_build():
     def route_get_health():
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
@@ -506,6 +509,7 @@ def app_build():
     def route_get_repos():
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
             return _response
     
@@ -517,6 +521,7 @@ def app_build():
     def route_get_info():
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
@@ -528,6 +533,7 @@ def app_build():
     def route_repo_index_yaml(_repo):
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
             return _response
         
@@ -543,6 +549,10 @@ entries: {}
     @app.route('/<_repo>/charts/<_file>', methods=['GET'])
     @auth.login_required(optional=allow_anonymous_get)
     def route_repo_charts_file(_repo,_file):
+        @after_this_request
+        def add_header(_response):            
+            _response.headers['X-Request-Id'] = current_request_id()
+            return _response
 
         return request_get_repo_charts_file(_repo, _file)
 
@@ -551,6 +561,7 @@ entries: {}
     def route_api_repo_charts(_repo):
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
@@ -565,6 +576,7 @@ entries: {}
     def route_POST_api_repo_charts(_repo):
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
@@ -587,6 +599,7 @@ entries: {}
     def route_api_repo_charts_chart(_repo,_chart):
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='application/json; charset=utf-8'
             return _response
 
@@ -601,6 +614,7 @@ entries: {}
     def route_api_repo_charts_chart_version(_repo, _chart, _version):
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
             return _response
         
@@ -618,6 +632,7 @@ entries: {}
     def route_DELETE_api_repo_charts_chart_version(_repo, _chart, _version):
         @after_this_request
         def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
             _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
             return _response
 

@@ -8,6 +8,7 @@ RUN mkdir -p /charthall_data \
     && pip-3.9 install \
         Flask \
         Flask-HTTPAuth \
+        flask-log-request-id \
         waitress \
         paste \
     && yum clean all \
