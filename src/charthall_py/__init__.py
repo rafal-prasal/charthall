@@ -178,24 +178,29 @@ def cache_render_chart(_cache, _chart):
     )
 
 def cache_render(_cache):
+    now_generated=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
     if len( _cache['yaml_chart'].values())==0: 
 
         _cache['yaml']="""---
 apiVersion: v1
-entries: {}"""
+generated: "{generated}"
+entries: {{}}""".format(
+            generated=now_generated
+        )
 
         _cache['json']="{}"
-
         return
 
     _cache['yaml']="""---
 apiVersion: v1
+generated: "{generated}"
 entries:
 {list}""" .format(
         list="".join(
             _cache['yaml_chart'].values()
-        )
+        ),
+        generated=now_generated
     )
 
     list=[]
