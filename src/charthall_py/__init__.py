@@ -137,8 +137,8 @@ def cache_render_chart_version(_cache, _repo, _data):
     _cache['yaml_chart_version'][ c ][ v ]="""  - apiVersion: v1
     name: {chart}
     version: {version}
-    appVersion: {version}
-    digest: "abcd0123456789"
+    appVersion: {version}             
+    digest: abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123
     description: ""
     urls:
     - {chart_url}/{repo}/charts/{filename}
@@ -154,7 +154,7 @@ def cache_render_chart_version(_cache, _repo, _data):
         repo=_repo
     )
 
-    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v1", "home": "https://home.com", "maintainers": [ {{ "name": "maintainer", "email": "maintainer@maintainers.org" }} ], "icon" :"", "digest": "abcd0123456789", "description": "description", "appVersion": "{version}", "dependencies": [], "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v1", "home": "https://home.com", "maintainers": [ {{ "name": "maintainer", "email": "maintainer@maintainers.org" }} ], "icon" :"", "digest": "abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123", "description": "description", "appVersion": "{version}", "dependencies": [], "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
@@ -253,8 +253,8 @@ def cache_rebuild_repo_charts(_repo):
 
         data['created_json']=datetime.datetime.fromtimestamp(
             os_lstat_st_ctime,
-            tz=datetime.timezone.utc        
-        ).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+            tz=datetime.timezone.utc 
+        ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
 
         data['filename'] = f
 
@@ -305,7 +305,7 @@ def put_file(_repo, _extension, _req_file):
     data['created_json']=datetime.datetime.fromtimestamp(
         os_lstat_st_ctime,
         tz=datetime.timezone.utc        
-    ).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+    ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
 
     return data
 
@@ -438,23 +438,23 @@ def request_delete_api_repo_charts_chart_version(_repo, _chart, _version):
     finally:    
         CACHE['mutexes'][_repo].release()
 
+def request_get_api_repo_charts(_repo):
+    if _repo not in CACHE['index']:        
+        return ('{}', 200)
+
+    return CACHE['index'][_repo]['json']
+
 def request_head_api_repo_charts_chart_version(_repo, _chart, _version):
     if _repo not in CACHE['index']:
         return ('{{"error":"{repo} not found"}}'.format(repo=_repo), 404)
 
     if _chart not in CACHE['index'][_repo]['json_chart_version']:
         return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
-    
+        
     if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
         return ('{{"error":"{repo}/{chart}-{version} not found"}}'.format(repo=_repo, chart=_chart, version=_version), 404)
 
     return ('{}', 200)
-
-def request_get_api_repo_charts(_repo):
-    if _repo not in CACHE['index']:        
-        return ('{}', 200)
-
-    return CACHE['index'][_repo]['json']
 
 def request_get_api_repo_charts_chart_version(_repo, _chart, _version):
     if _repo not in CACHE['index']:
@@ -462,11 +462,15 @@ def request_get_api_repo_charts_chart_version(_repo, _chart, _version):
 
     if _chart not in CACHE['index'][_repo]['json_chart_version']:
         return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
+
+    version=_version
+    if _version is None:
+        version=list(CACHE['index'][_repo]['json_chart_version'][_chart].keys())[0]
     
-    if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
+    if version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
         return ('{{"error":"{repo}/{chart}-{version} not found"}}'.format(repo=_repo, chart=_chart, version=_version), 404)
         
-    return CACHE['index'][_repo]['json_chart_version'][_chart][_version]
+    return CACHE['index'][_repo]['json_chart_version'][_chart][version]
 
 def request_get_api_repo_charts_chart(_repo, _chart):
     if _repo not in CACHE['index']:
@@ -632,7 +636,9 @@ entries: {}
 
         return ( '{"error":"unknown method"}', 400 )
 
+    #GET /api/charts/<_chart>/
     #GET /api/charts/<chart>/<version>
+    @app.route('/api/<_repo>/charts/<_chart>/', methods=['GET'], defaults={'_version': None})
     @app.route("/api/<_repo>/charts/<_chart>/<_version>", methods=['GET', 'HEAD'])
     @auth.login_required(optional=allow_anonymous_get)
     def route_api_repo_charts_chart_version(_repo, _chart, _version):
