@@ -134,17 +134,16 @@ def cache_render_chart_version(_cache, _repo, _data):
         _cache['yaml_chart_version'][c] = {}
         _cache['json_chart_version'][c] = {}
     
-    _cache['yaml_chart_version'][ c ][ v ]="""  - apiVersion: v1
-    name: {chart}
-    version: {version}
-    appVersion: {version}             
-    digest: abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123
-    description: ""
-    urls:
-    - {chart_url}/{repo}/charts/{filename}
-    dependencies: []
-    created: "{created}"
-    serverInfo: {{}}
+    _cache['yaml_chart_version'][ c ][ v ]="""    - apiVersion: v1
+      name: {chart}
+      version: {version}
+      appVersion: {version}
+      digest: abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123
+      description: ""
+      urls:
+        - {chart_url}/{repo}/charts/{filename}
+      dependencies: []
+      created: {created}
 """.format(
         chart=_data['chart'],
         version=_data['version'],
