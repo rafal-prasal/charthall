@@ -135,25 +135,23 @@ def cache_render_chart_version(_cache, _repo, _data):
         _cache['json_chart_version'][c] = {}
     
     _cache['yaml_chart_version'][ c ][ v ]="""    - apiVersion: v1
-      name: {chart}
-      version: {version}
       appVersion: {version}
-      digest: abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123
-      description: ""
+      created: "{created}"
+      description: HelmChart {version}
+      digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+      name: {chart}
       urls:
         - {chart_url}/{repo}/charts/{filename}
-      dependencies: []
-      created: {created}
-""".format(
+      version: {version}""".format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
-        created=_data['created_yaml'],
+        created=_data['created_json'],
         chart_url=CHARTHALL_CHART_URL,
         repo=_repo
     )
 
-    _cache['json_chart_version'][ c ][ v ]='{{"apiVersion" : "v1", "home": "https://home.com", "maintainers": [ {{ "name": "maintainer", "email": "maintainer@maintainers.org" }} ], "icon" :"", "digest": "abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123", "description": "description", "appVersion": "{version}", "dependencies": [], "name": "{chart}", "version": "{version}", "urls": [ "{chart_url}/{repo}/charts/{filename}" ], "created:": "{created}"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"name":"{chart}","version":"{version}","description":"HelmChart {version}","apiVersion":"v1","appVersion":"{version}","urls":["{chart_url}/{repo}/charts/{filename}"],"created":"{created}","digest":"abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
@@ -167,7 +165,7 @@ def cache_render_chart(_cache, _chart):
     _cache['yaml_chart'][ _chart ]="""  {chart}:
 {list}""".format(
         chart=_chart,
-        list="".join(
+        list="\n".join(
             _cache['yaml_chart_version'][_chart].values()
         )
     )
@@ -184,22 +182,24 @@ def cache_render(_cache):
 
     if len( _cache['yaml_chart'].values())==0: 
 
-        _cache['yaml']="""---
-apiVersion: v1
+        _cache['yaml']="""apiVersion: v1
+entries: {{}}
 generated: "{generated}"
-entries: {{}}""".format(
+serverInfo: {{}}
+""".format(
             generated=now_generated
         )
 
         _cache['json']="{}"
         return
 
-    _cache['yaml']="""---
-apiVersion: v1
-generated: "{generated}"
+    _cache['yaml']="""apiVersion: v1
 entries:
-{list}""" .format(
-        list="".join(
+{list}
+generated: "{generated}"
+serverInfo: {{}}
+""" .format(
+        list="\n".join(
             _cache['yaml_chart'].values()
         ),
         generated=now_generated
@@ -244,14 +244,14 @@ def cache_rebuild_repo_charts(_repo):
         if data is not None and data['version'] == '':
             continue
 
-        os_lstat_st_ctime=os.lstat(file_path).st_ctime
+        os_lstat_st_mtime=os.lstat(file_path).st_mtime
         data['created_yaml']=datetime.datetime.fromtimestamp(
-            os.lstat(file_path).st_ctime,
+            os.lstat(file_path).st_mtime,
             tz=datetime.timezone.utc
         ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
         data['created_json']=datetime.datetime.fromtimestamp(
-            os_lstat_st_ctime,
+            os_lstat_st_mtime,
             tz=datetime.timezone.utc 
         ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
 
@@ -294,15 +294,15 @@ def put_file(_repo, _extension, _req_file):
 
     data['filename']=basename
 
-    os_lstat_st_ctime=os.lstat(filename).st_ctime
+    os_lstat_st_mtime=os.lstat(filename).st_mtime
 
     data['created_yaml']=datetime.datetime.fromtimestamp(
-        os_lstat_st_ctime,
+        os_lstat_st_mtime,
         tz=datetime.timezone.utc        
     ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     data['created_json']=datetime.datetime.fromtimestamp(
-        os_lstat_st_ctime,
+        os_lstat_st_mtime,
         tz=datetime.timezone.utc        
     ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
 
@@ -537,7 +537,7 @@ def app_build():
         @after_this_request
         def add_header(_response):
             _response.headers['X-Request-Id'] = current_request_id()
-            _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
+            _response.headers['Content-Type']='application/x-yaml'
             return _response
     
         return CACHE['repos']
@@ -561,14 +561,20 @@ def app_build():
         @after_this_request
         def add_header(_response):
             _response.headers['X-Request-Id'] = current_request_id()
-            _response.headers['Content-Type']='text/x-yaml; charset=utf-8'
+            _response.headers['Content-Type']='application/x-yaml'
             return _response
         
         if _repo not in CACHE['index']:
-            return ("""---
-apiVersion: v1
-entries: {}
-""", 200)
+
+            now_generated=datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+            return ("""apiVersion: v1
+entries: {{}}
+generated: "{generated}"
+serverInfo: {{}}
+""".format(
+            generated=now_generated
+        ), 200)
 
         return CACHE['index'][_repo]['yaml']
 
