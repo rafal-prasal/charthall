@@ -168,6 +168,7 @@ index.yaml file used by helm. provides only minimal set of inforation needed by 
     curl -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" http://localhost:8080/myrepo/index.yaml
 
 output:
+
     apiVersion: v1
     entries:
       mychart:
