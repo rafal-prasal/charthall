@@ -137,7 +137,7 @@ def cache_render_chart_version(_cache, _repo, _data):
     _cache['yaml_chart_version'][ c ][ v ]="""    - apiVersion: v1
       appVersion: {version}
       created: "{created}"
-      description: HelmChart {version}
+      description: {chart} {version}
       digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
       name: {chart}
       urls:
@@ -151,7 +151,7 @@ def cache_render_chart_version(_cache, _repo, _data):
         repo=_repo
     )
 
-    _cache['json_chart_version'][ c ][ v ]='{{"name":"{chart}","version":"{version}","description":"HelmChart {version}","apiVersion":"v1","appVersion":"{version}","urls":["{chart_url}/{repo}/charts/{filename}"],"created":"{created}","digest":"abcd0123456789abcd0123456789abcd0123456789abcd0123456789abcd0123"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"name":"{chart}","version":"{version}","description":"{chart} {version}","apiVersion":"v1","appVersion":"{version}","urls":["{chart_url}/{repo}/charts/{filename}"],"created":"{created}","digest":"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],

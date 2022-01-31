@@ -1,4 +1,4 @@
-# ChartHall 0.0.2
+# ChartHall 0.0.3
 
 To some extent it is replacement to chartmuseum, which is great piece of software, but unfortunately has its flaws and limitations.
 
@@ -147,7 +147,7 @@ name and version of the application
 
 output:
     
-    {"version":"v0.0.2"}
+    {"version":"v0.0.3"}
 
 ### GET /health
 information about health of service, no basic authentication check here
@@ -168,34 +168,48 @@ index.yaml file used by helm. provides only minimal set of inforation needed by 
     curl -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" http://localhost:8080/myrepo/index.yaml
 
 output:
-
-    ---
     apiVersion: v1
     entries:
       mychart:
-      - apiVersion: v1
-        name: mychart
-        version: 0.0.1
-        urls:
-        - /myrepo/charts/mychart-0.0.1.tgz
-      - apiVersion: v1
-        name: mychart
-        version: 0.0.2
-        urls:
-        - /myrepo/charts/mychart-0.0.2.tgz
+        - apiVersion: v1
+          appVersion: 0.0.1
+          created: "2022-01-31T14:09:14.636198000+00:00"
+          description: mychart 0.0.1
+          digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          name: mychart
+          urls:
+            - /myrepo/charts/mychart-0.0.2.tgz
+          version: 0.0.1
+        - apiVersion: v1
+          appVersion: 0.0.2
+          created: "2022-01-31T14:09:14.636198000+00:00"
+          description: mychart 0.0.2
+          digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          name: mychart
+          urls:
+            - /myrepo/charts/mychart-0.0.2.tgz
+          version: 0.0.2
       mychart2:
-      - apiVersion: v1
-        name: mychart2
-        version: 0.0.1
-        urls:
-        - /myrepo/charts/mychart2-0.0.1.tgz
-      - apiVersion: v1
-        name: mychart2
-        version: 0.0.2
-        urls:
-        - /myrepo/charts/mychart2-0.0.2.tgz
-
-    created: 2022-01-22T11:33:58.449085Z
+        - apiVersion: v1
+          appVersion: 0.0.1
+          created: "2022-01-31T14:09:14.636198000+00:00"
+          description: mychart2 0.0.1
+          digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          name: mychart
+          urls:
+            - /myrepo/charts/mychart2-0.0.1.tgz
+          version: 0.0.1
+        - apiVersion: v1
+          appVersion: 0.0.2
+          created: "2022-01-31T14:09:14.636198000+00:00"
+          description: mychart2 0.0.2
+          digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          name: mychart2
+          urls:
+            - /myrepo/charts/mychart2-0.0.2.tgz
+          version: 0.0.2
+    generated: "2022-01-31T17:32:24+00:00"
+    serverInfo: {}
 
 ### GET /{repo}/charts/{chart}-{version}.tgz
 provides a helm chart file to helm when helm fetch is executed
@@ -215,44 +229,51 @@ output:
     {
         "mychart": [
             {
-                "apiVersion": "v2",
+                "apiVersion": "v1",
                 "name": "mychart",
                 "version": "0.0.1",
+                "description": "mychart 0.0.1",
+                "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
                 "urls": [
                     "/myrepo/charts/mychart-0.0.1.tgz"
                 ],
-                "created:": "2022-01-22T11:33:58.449085Z"
+                "created": "2022-01-31T14:09:14.636198000+00:00"
             },
             {
-                "apiVersion": "v2",
+                "apiVersion": "v1",
                 "name": "mychart",
                 "version": "0.0.2",
+                "description": "mychart 0.0.2",
+                "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
                 "urls": [
                     "/myrepo/charts/mychart-0.0.2.tgz"
                 ],
-                "created:": "2022-01-22T11:33:58.449085Z"
+                "created:": "2022-01-31T14:09:14.636198000+00:00"
             }
         ],
         "mychart2": [
             {
-                "apiVersion": "v2",
+                "apiVersion": "v1",
                 "name": "mychart2",
                 "version": "0.0.1",
+                "description": "mychart2 0.0.1",
+                "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
                 "urls": [
                     "/myrepo/charts/mychart2-0.0.1.tgz"
                 ],
-                "created:": "2022-01-22T11:33:58.449085Z"
+                "created:": "2022-01-31T14:09:14.636198000+00:00"
             },
             {
-                "apiVersion": "v2",
+                "apiVersion": "v1",
                 "name": "mychart2",
                 "version": "0.0.2",
+                "description": "mychart2 0.0.2",
+                "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
                 "urls": [
                     "/myrepo/charts/mychart2-0.0.2.tgz"
                 ],
-                "created:": "2022-01-22T11:33:58.449085Z"
+                "created:": "2022-01-31T14:09:14.636198000+00:00"
             }
-
         ]
     }
 
@@ -267,24 +288,27 @@ output:
 
     [
         {
-            "apiVersion": "v2",
+            "apiVersion": "v1",
             "name": "mychart",
             "version": "0.0.1",
+            "description": "mychart 0.0.1",
+            "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
             "urls": [
                 "/myrepo/charts/mychart-0.0.1.tgz"
             ],
-            "created:": "2022-01-22T11:33:58.449085Z"
+            "created": "2022-01-31T14:09:14.636198000+00:00"
         },
         {
-            "apiVersion": "v2",
-            "name": "mychart",
+            "apiVersion": "v1",
+            "name": "mychart",            
             "version": "0.0.2",
+            "description": "mychart 0.0.2",
+            "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
             "urls": [
                 "/myrepo/charts/mychart-0.0.2.tgz"
             ],
-            "created:": "2022-01-22T11:33:58.449085Z"
+            "created": "2022-01-31T14:09:14.636198000+00:00"
         }
-
     ]
 
 ### GET /api/{repo}/charts/{chart}/{version}
@@ -298,13 +322,15 @@ describes particular **version** of **chart** in **repo** using json as an outpu
 output:
 
     {
-        "apiVersion": "v2",
+        "apiVersion": "v1",
         "name": "mychart",
         "version": "0.0.1",
+        "description": "mychart 0.0.1",
         "urls": [
             "/myrepo/charts/mychart-0.0.1.tgz"
         ],
-        "created:": "2022-01-22T11:33:58.449085Z"
+        "digest": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "created": "2022-01-31T14:09:14.636198000+00:00"
     }
 
 ### POST /api/{repo}/charts
