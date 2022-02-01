@@ -9,6 +9,7 @@ import distutils
 import threading
 import time
 import multiprocessing
+import multiprocessing.pool
 import hashlib
 from threading import Lock
 
@@ -34,8 +35,7 @@ CHARTHALL_AUTH_ANONYMOUS_GET=False
 
 CHARTHALL_CACHE_INTERVAL=0
 CHARTHALL_ALLOW_OVERWRITE=True
-
-CHARTHALL_DIGEST_POOL=multiprocessing.Pool()
+CHARTHALL_INDEX_LIMIT=200
 
 CACHE={
     'info': '{{"version":"v{version}"}}'.format(
@@ -51,6 +51,24 @@ repos: []
 RE_VERSION=re.compile('([0-9]+\.){2,}[0-9]+')
 
 MUTEX = Lock()
+
+class NoDaemonProcess(multiprocessing.Process):
+    # make 'daemon' attribute always return False
+    @property
+    def daemon(self):
+        return False
+
+    @daemon.setter
+    def daemon(self, val):
+        pass
+
+class NoDaemonProcessPool(multiprocessing.pool.Pool):
+
+    def Process(self, *args, **kwds):
+        proc = super(NoDaemonProcessPool, self).Process(*args, **kwds)
+        proc.__class__ = NoDaemonProcess
+
+        return proc
 
 def log_print(_type, _msg):
     print(
@@ -83,10 +101,10 @@ def extract_name_version(_filename):
         'version': '-'.join(chart_version)
     }
 
-def calculate_digest(_data):
+def calculate_digest(_data):   
     fp=_data['file_path']
     m = hashlib.sha256()
-
+    
     with open(fp,"rb") as f:
         m.update(f.read())
 
@@ -94,6 +112,13 @@ def calculate_digest(_data):
 
     return _data
 
+def calculate_digest_pool(_data_list):
+
+    with multiprocessing.Pool(processes=CHARTHALL_INDEX_LIMIT, maxtasksperchild=1000) as pool:
+        data=pool.map(calculate_digest, _data_list)
+
+    return data
+    
 def cache_rebuild():
     repos=os.listdir(CHARTHALL_STORAGE_LOCAL_ROOTDIR)
     
@@ -280,9 +305,9 @@ def cache_rebuild_repo_charts(_repo):
 
         c_list.append(data)
 
-    c_list=CHARTHALL_DIGEST_POOL.map(calculate_digest, c_list)
-
-    for d in c_list:
+    c_list=CHARTHALL_DIGEST_POOL.map(calculate_digest_pool, [ c_list ])
+        
+    for d in c_list[0]:
         cache_render_chart_version(cache, _repo, d)
 
     for c in cache['yaml_chart_version']:
@@ -738,6 +763,7 @@ def create_app(
     global CHARTHALL_CHART_URL
     global CHARTHALL_DIGEST_POOL
 
+
     if _storage_local_rootdir is not None:
         CHARTHALL_STORAGE_LOCAL_ROOTDIR=_storage_local_rootdir
 
@@ -769,17 +795,14 @@ def create_app(
         except:
             pass
 
-    index_limit=200
+    CHARTHALL_INDEX_LIMIT=200
     if _index_limit is not None:
         try:
-            indexers=int(_index_limit)
+            CHARTHALL_INDEX_LIMIT=int(_index_limit)
         except:
             pass
 
-    CHARTHALL_DIGEST_POOL=multiprocessing.Pool(
-        processes=index_limit,
-        maxtasksperchild=1000
-    )
+    CHARTHALL_DIGEST_POOL=NoDaemonProcessPool(1)
 
     cache_rebuild()
     app_build()
