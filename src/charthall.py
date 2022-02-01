@@ -27,6 +27,7 @@ if __name__ == "__main__":
                 _allow_overwrite=os.getenv('ALLOW_OVERWRITE'),
                 _chart_url=os.getenv('CHART_URL'),
                 _cache_interval=os.getenv('CACHE_INTERVAL'),
+                _index_limit=os.getenv('INDEX_LIMIT'),
         #do not do anything
                 _storage=os.getenv('STORAGE'),   #ALWAYS =LOCAL             
                 _depth=os.getenv('DEPTH')        #ALWAYS =1

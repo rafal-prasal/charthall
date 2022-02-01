@@ -8,7 +8,8 @@ import datetime
 import distutils
 import threading
 import time
-
+import multiprocessing
+import hashlib
 from threading import Lock
 
 from flask import Flask, after_this_request, request, send_file
@@ -18,7 +19,7 @@ from werkzeug.datastructures import Headers
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 
-CHARTHALL_VERSION="0.0.2"
+CHARTHALL_VERSION="0.0.4"
 
 CHARTHALL_STORAGE='local'
 CHARTHALL_STORAGE_LOCAL_ROOTDIR='/data/storage'
@@ -33,6 +34,8 @@ CHARTHALL_AUTH_ANONYMOUS_GET=False
 
 CHARTHALL_CACHE_INTERVAL=0
 CHARTHALL_ALLOW_OVERWRITE=True
+
+CHARTHALL_DIGEST_POOL=multiprocessing.Pool()
 
 CACHE={
     'info': '{{"version":"v{version}"}}'.format(
@@ -53,7 +56,7 @@ def log_print(_type, _msg):
     print(
         '[{stamp}] [{type}] {msg}'.format(
         #[25/Jan/2022:11:48:46 +0000]
-            stamp=datetime.datetime.now().strftime("%d/%B/%Y:%H:%M:%S %z"),
+            stamp=datetime.datetime.now().strftime("%d/%b/%Y:%H:%M:%S +0000"),
             type=_type,
             msg=_msg
         )
@@ -79,6 +82,17 @@ def extract_name_version(_filename):
         'chart': '-'.join(chart_name), 
         'version': '-'.join(chart_version)
     }
+
+def calculate_digest(_data):
+    fp=_data['file_path']
+    m = hashlib.sha256()
+
+    with open(fp,"rb") as f:
+        m.update(f.read())
+
+    _data['digest']=m.hexdigest()
+
+    return _data
 
 def cache_rebuild():
     repos=os.listdir(CHARTHALL_STORAGE_LOCAL_ROOTDIR)
@@ -129,16 +143,29 @@ def cache_render_chart_version(_cache, _repo, _data):
 
     c=_data['chart']
     v=_data['version']
+    fp=_data['file_path']
 
     if c not in _cache['yaml_chart_version']:
         _cache['yaml_chart_version'][c] = {}
         _cache['json_chart_version'][c] = {}
+
+    os_lstat_st_mtime=os.lstat(fp).st_mtime
+
+    _data['created_yaml']=datetime.datetime.fromtimestamp(
+        os_lstat_st_mtime,
+        tz=datetime.timezone.utc
+    ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    _data['created_json']=datetime.datetime.fromtimestamp(
+        os_lstat_st_mtime,
+        tz=datetime.timezone.utc
+    ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
     
     _cache['yaml_chart_version'][ c ][ v ]="""    - apiVersion: v1
       appVersion: {version}
       created: "{created}"
       description: {chart} {version}
-      digest: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+      digest: {digest}
       name: {chart}
       urls:
         - {chart_url}/{repo}/charts/{filename}
@@ -148,15 +175,17 @@ def cache_render_chart_version(_cache, _repo, _data):
         filename=_data['filename'],
         created=_data['created_json'],
         chart_url=CHARTHALL_CHART_URL,
+        digest=_data['digest'],
         repo=_repo
     )
 
-    _cache['json_chart_version'][ c ][ v ]='{{"name":"{chart}","version":"{version}","description":"{chart} {version}","apiVersion":"v1","appVersion":"{version}","urls":["{chart_url}/{repo}/charts/{filename}"],"created":"{created}","digest":"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"}}'.format(
+    _cache['json_chart_version'][ c ][ v ]='{{"name":"{chart}","version":"{version}","description":"{chart} {version}","apiVersion":"v1","appVersion":"{version}","urls":["{chart_url}/{repo}/charts/{filename}"],"created":"{created}","digest":"{digest}"}}'.format(
         chart=_data['chart'],
         version=_data['version'],
         filename=_data['filename'],
         created=_data['created_json'],
         chart_url=CHARTHALL_CHART_URL,
+        digest=_data['digest'],
         repo=_repo        
     ) 
 
@@ -228,7 +257,9 @@ def cache_rebuild_repo_charts(_repo):
         'json':'{}'
     }
 
-    for f in files:        
+    c_list=[]
+
+    for f in files:
         if not f.endswith('.tgz'):
             continue
 
@@ -244,20 +275,15 @@ def cache_rebuild_repo_charts(_repo):
         if data is not None and data['version'] == '':
             continue
 
-        os_lstat_st_mtime=os.lstat(file_path).st_mtime
-        data['created_yaml']=datetime.datetime.fromtimestamp(
-            os.lstat(file_path).st_mtime,
-            tz=datetime.timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        data['file_path']=file_path
+        data['filename']=f
 
-        data['created_json']=datetime.datetime.fromtimestamp(
-            os_lstat_st_mtime,
-            tz=datetime.timezone.utc 
-        ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
+        c_list.append(data)
 
-        data['filename'] = f
+    c_list=CHARTHALL_DIGEST_POOL.map(calculate_digest, c_list)
 
-        cache_render_chart_version(cache, _repo, data)
+    for d in c_list:
+        cache_render_chart_version(cache, _repo, d)
 
     for c in cache['yaml_chart_version']:
         cache_render_chart(cache, c)
@@ -276,35 +302,26 @@ def put_file(_repo, _extension, _req_file):
     data=extract_name_version(basename.replace(_extension,''))
 
     repo_dir = os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR,_repo)
-    filename=os.path.join(repo_dir,basename)
+    file_path=os.path.join(repo_dir,basename)
 
     if CHARTHALL_ALLOW_OVERWRITE == False \
         and _repo in CACHE['index'] \
         and data['chart'] in CACHE['index'][_repo]['json_chart_version'] \
         and data['version'] in CACHE['index'][_repo]['json_chart_version'][ data['chart'] ]:
-        raise Exception("chart overwriting not allowed "+filename)
+        raise Exception("chart overwriting not allowed "+file_path)
 
-    if not filename.endswith(_extension):
+    if not basename.endswith(_extension):
         raise Exception('incorrect extension('+_extension+') '+basename)
 
     if data['version']=='':
         raise Exception('non semantic versioning '+basename)
 
-    _req_file.save(filename)    
+    _req_file.save(file_path)
 
     data['filename']=basename
+    data['file_path']=file_path
 
-    os_lstat_st_mtime=os.lstat(filename).st_mtime
-
-    data['created_yaml']=datetime.datetime.fromtimestamp(
-        os_lstat_st_mtime,
-        tz=datetime.timezone.utc        
-    ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-    data['created_json']=datetime.datetime.fromtimestamp(
-        os_lstat_st_mtime,
-        tz=datetime.timezone.utc        
-    ).strftime("%Y-%m-%dT%H:%M:%S.%f000+00:00")
+    data=calculate_digest(data)
 
     return data
 
@@ -704,7 +721,8 @@ def create_app(
         _cache_interval=None,
         _allow_overwrite=None,
         _auth_anonymous_get=None,
-        _chart_url=None
+        _chart_url=None,
+        _index_limit=None
     ):
 
     global CHARTHALL_STORAGE_LOCAL_ROOTDIR
@@ -718,6 +736,7 @@ def create_app(
     global CHARTHALL_ALLOW_OVERWRITE
     global CHARTHALL_AUTH_ANONYMOUS_GET
     global CHARTHALL_CHART_URL
+    global CHARTHALL_DIGEST_POOL
 
     if _storage_local_rootdir is not None:
         CHARTHALL_STORAGE_LOCAL_ROOTDIR=_storage_local_rootdir
@@ -741,19 +760,34 @@ def create_app(
     if _allow_overwrite is not None:
         try:
             CHARTHALL_ALLOW_OVERWRITE=distutils.util.strtobool(_allow_overwrite)
-        except:            
+        except:
             pass
 
     if _auth_anonymous_get is not None:
         try:
             CHARTHALL_AUTH_ANONYMOUS_GET = distutils.util.strtobool(_auth_anonymous_get)
-        except:            
+        except:
             pass
+
+    index_limit=200
+    if _index_limit is not None:
+        try:
+            indexers=int(_index_limit)
+        except:
+            pass
+
+    CHARTHALL_DIGEST_POOL=multiprocessing.Pool(
+        processes=index_limit,
+        maxtasksperchild=1000
+    )
 
     cache_rebuild()
     app_build()
 
-    rebuild_cache_thread = threading.Thread(target=rebuild_cache_on_timer)
+    rebuild_cache_thread = threading.Thread(
+        target=rebuild_cache_on_timer
+    )
+
     rebuild_cache_thread.start()
 
     return app

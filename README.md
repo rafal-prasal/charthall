@@ -1,4 +1,4 @@
-# ChartHall 0.0.3
+# ChartHall 0.0.4
 
 To some extent it is replacement to chartmuseum, which is great piece of software, but unfortunately has its flaws and limitations.
 
@@ -7,6 +7,8 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 **Upsides**
 - really quick start
 - scales well with growing number of charts in repos
+  - startup repo
+    - 130k charts, 200 INDEX_LIMIT ~90s
   - single repo
     - POST /{repo}/charts 
       - concurency=1
@@ -31,6 +33,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
     - CHART_POST_FORM_FIELD_NAME
     - PROV_POST_FORM_FIELD_NAME
     - CACHE_INTERVAL
+    - INDEX_LIMIT
 
 **Downdsides**
 - handles only environmental variables
@@ -59,12 +62,13 @@ Code found here is like "Cutting the grass with machete" and definitely could be
         -v /path/to/data/directory:/charthall_data \
         charthall:latest
 
-### with rebuilding of cache with internal of 10m
+### with rebuilding of cache with internal of 10m with 100 digest calculations at a time
     docker run \
         -d \
         -p 8080:8080 \
         -v /path/to/data/directory:/charthall_data \
         -e CACHE_INTERVAL=10m \
+        -e INDEX_LIMIT=100 \
         charthall:latest
 
             
@@ -147,7 +151,7 @@ name and version of the application
 
 output:
     
-    {"version":"v0.0.3"}
+    {"version":"v0.0.4"}
 
 ### GET /health
 information about health of service, no basic authentication check here
