@@ -44,24 +44,31 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 - relies solely on filenames and does not provide any additional data in index.yaml and other api calls
 
 ## Algorithms
-### indexing repos
+### Indexing repositories
 There are 3 values that steer the indexing
 - CACHE_INTERVAL
 - INDEX_LIMIT
 - number of charts in repo
 
-    start indexing()
+pseudocode example:
+
+    wile True:
         get list of repos
+        
         for each repo:
             get list of charts in repo
-            spawn calculating digest indexers
-                indexers_no = min(floor(charts_no/1024)+1,INDEX_LIMIT)
-            terminate calculating digest indexers
-        finish repo indexing()
-    finish indexing()
-    wait(CACHE_INTERVAL)
 
-*REMARK*: spawning and terminating indexers takes time (~1s), which is noticeable in case many small repositories becasue as it is stated in the algorithm those are spawned and terminated on repo processing basis.
+            indexers_no = min(floor(charts_no/1024)+1,INDEX_LIMIT)
+
+            spawn calculating digest indexers
+                perform digest calculation
+            terminate calculating digest indexers
+
+         wait(CACHE_INTERVAL)
+
+*REMARK2*: signifficantly lowers memory footprint
+
+*REMARK2*: spawning and terminating indexers takes time (~1s), which is noticeable in case many small repositories becasue as it is stated in the algorithm those are spawned and terminated on repo processing basis.
 
 ## USAGE EXAMPLES
 
@@ -179,7 +186,6 @@ information about health of service, no basic authentication check here
     curl http://localhost:8080/health
     
 output:
-- in case removal went fine
 
     {"healthy":true}
 
@@ -376,11 +382,11 @@ adds **chart** with **prov** file to the repo. if **repo** does not exist it wil
 output:
 - in case adding chart + prov file went fine
 
-    { "saved": true }
+        { "saved": true }
 
 - or in case if not
 
-    { "saved": false }
+        { "saved": false }
 
 ### POST /api/{repo}/prov
 adds **prov** file to the repo. if **repo** does not exist it will create it on the spot
@@ -399,11 +405,11 @@ adds **prov** file to the repo. if **repo** does not exist it will create it on 
 output:
 - in case adding chart + prov file went fine
 
-    { "saved": true }
+        { "saved": true }
 
 - or in case if not
 
-    { "saved": false }
+        { "saved": false }
 
 ### DELETE /api/{repo}/charts/{chart}/{version}
 removes **chart** archive and prov file for particular **version** from **repo**. if **chart** will stay with no **version** then it will also remove it.
@@ -420,8 +426,8 @@ removes **chart** archive and prov file for particular **version** from **repo**
 output:
 - in case removal went fine
 
-    { "deleted": true }
+        { "deleted": true }
 
 - or if not
 
-    { "deleted": false }
+        { "deleted": false }
