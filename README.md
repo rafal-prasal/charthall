@@ -1,4 +1,4 @@
-# ChartHall 0.0.4
+# ChartHall 0.0.5
 
 To some extent it is replacement to chartmuseum, which is great piece of software, but unfortunately has its flaws and limitations.
 
@@ -8,7 +8,7 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 - really quick start
 - scales well with growing number of charts in repos
   - startup repo
-    - 130k charts, 200 INDEX_LIMIT ~90s
+    - 130k charts/22G 50 INDEX_LIMIT ~30s
   - single repo
     - POST /{repo}/charts 
       - concurency=1
@@ -42,6 +42,26 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 - only single path level for repo is allowed (DEPTH=1)
 - compatible, but probably not fully compliant with semantic versioning, silently ignores noncompliant files
 - relies solely on filenames and does not provide any additional data in index.yaml and other api calls
+
+## Algorithms
+### indexing repos
+There are 3 values that steer the indexing
+- CACHE_INTERVAL
+- INDEX_LIMIT
+- number of charts in repo
+
+    start indexing()
+        get list of repos
+        for each repo:
+            get list of charts in repo
+            spawn calculating digest indexers
+                indexers_no = min(floor(charts_no/1024)+1,INDEX_LIMIT)
+            terminate calculating digest indexers
+        finish repo indexing()
+    finish indexing()
+    wait(CACHE_INTERVAL)
+
+*REMARK*: spawning and terminating indexers takes time (~1s), which is noticeable in case many small repositories becasue as it is stated in the algorithm those are spawned and terminated on repo processing basis.
 
 ## USAGE EXAMPLES
 
@@ -151,7 +171,7 @@ name and version of the application
 
 output:
     
-    {"version":"v0.0.4"}
+    {"version":"v0.0.5"}
 
 ### GET /health
 information about health of service, no basic authentication check here
@@ -323,7 +343,6 @@ describes particular **version** of **chart** in **repo** using json as an outpu
 
     curl -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" http://localhost:8080/api/myrepo/charts/mychart/0.0.1
 
-
 output:
 
     {
@@ -344,13 +363,37 @@ adds **chart** with **prov** file to the repo. if **repo** does not exist it wil
     curl \
         -X POST \
         -F $CHART_POST_FORM_FIELD_NAME=@mychart-0.0.1.tar.gz \
-        -F $PROV_POST_FORM_FIELD_NAME=@mychart-0.0.1.prov \ 
+        -F $PROV_POST_FORM_FIELD_NAME=@mychart-0.0.1.prov \
         http://localhost:8080/api/myrepo/charts
 
-    curl \-X POST 
-        -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" \        
+    curl \
+        -X POST
+        -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" \
         -F $CHART_POST_FORM_FIELD_NAME=@mychart-0.0.1.tar.gz \
-        -F $PROV_POST_FORM_FIELD_NAME=@mychart-0.0.1.prov \ 
+        -F $PROV_POST_FORM_FIELD_NAME=@mychart-0.0.1.prov \
+        http://localhost:8080/api/myrepo/charts
+
+output:
+- in case adding chart + prov file went fine
+
+    { "saved": true }
+
+- or in case if not
+
+    { "saved": false }
+
+### POST /api/{repo}/prov
+adds **prov** file to the repo. if **repo** does not exist it will create it on the spot
+
+    curl \
+        -X POST \
+        -F $PROV_POST_FORM_FIELD_NAME=@mychart-0.0.1.prov \
+        http://localhost:8080/api/myrepo/charts
+
+    curl \
+        -X POST
+        -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" \
+        -F $PROV_POST_FORM_FIELD_NAME=@mychart-0.0.1.prov \
         http://localhost:8080/api/myrepo/charts
 
 output:
@@ -366,14 +409,13 @@ output:
 removes **chart** archive and prov file for particular **version** from **repo**. if **chart** will stay with no **version** then it will also remove it.
 
     curl \
-        -X DELETE \        
+        -X DELETE \
         http://localhost:8080/api/myrepo/charts/mychart/0.0.1
 
     curl \
         -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" \
         -X DELETE \
         http://localhost:8080/api/myrepo/charts/mychart/0.0.1
-
 
 output:
 - in case removal went fine

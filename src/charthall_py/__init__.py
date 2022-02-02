@@ -8,6 +8,7 @@ import datetime
 import distutils
 import threading
 import time
+import math
 import multiprocessing
 import multiprocessing.pool
 import hashlib
@@ -20,7 +21,7 @@ from werkzeug.datastructures import Headers
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 
-CHARTHALL_VERSION="0.0.4"
+CHARTHALL_VERSION="0.0.5"
 
 CHARTHALL_STORAGE='local'
 CHARTHALL_STORAGE_LOCAL_ROOTDIR='/data/storage'
@@ -35,7 +36,9 @@ CHARTHALL_AUTH_ANONYMOUS_GET=False
 
 CHARTHALL_CACHE_INTERVAL=0
 CHARTHALL_ALLOW_OVERWRITE=True
-CHARTHALL_INDEX_LIMIT=200
+
+CHARTHALL_INDEX_LIMIT=50
+CHARTHALL_INDEX_RATIO=1024
 
 CACHE={
     'info': '{{"version":"v{version}"}}'.format(
@@ -102,19 +105,38 @@ def extract_name_version(_filename):
     }
 
 def calculate_digest(_data):   
-    fp=_data['file_path']
-    m = hashlib.sha256()
-    
-    with open(fp,"rb") as f:
-        m.update(f.read())
 
-    _data['digest']=m.hexdigest()
+    try:
+        fp=_data['file_path']
+        m = hashlib.sha256()
 
-    return _data
+        with open(fp,"rb") as f:
+            m.update(f.read())
+
+        _data['digest']=m.hexdigest()
+
+        return _data
+    except Exception as e:
+        return None
 
 def calculate_digest_pool(_data_list):
 
-    with multiprocessing.Pool(processes=CHARTHALL_INDEX_LIMIT, maxtasksperchild=1000) as pool:
+    global CHARTHALL_INDEX_LIMIT
+
+    len_data_list=len(_data_list)
+
+    if len_data_list == 0:
+        return []
+
+    pool_size = math.floor(len_data_list/CHARTHALL_INDEX_RATIO) + 1
+
+    if pool_size > CHARTHALL_INDEX_LIMIT:
+        pool_size = CHARTHALL_INDEX_LIMIT
+
+    if len_data_list < CHARTHALL_INDEX_LIMIT:
+        pool_size=len_data_list
+
+    with multiprocessing.Pool(processes=pool_size) as pool:
         data=pool.map(calculate_digest, _data_list)
 
     return data
@@ -270,6 +292,9 @@ serverInfo: {{}}
     )
 
 def cache_rebuild_repo_charts(_repo):
+
+#    log_print('INFO:','cache_rebuild_repo_charts('+ _repo+') start')
+
     repo_path = os.path.join(CHARTHALL_STORAGE_LOCAL_ROOTDIR, _repo )
     files=os.listdir(repo_path)
     
@@ -308,6 +333,9 @@ def cache_rebuild_repo_charts(_repo):
     c_list=CHARTHALL_DIGEST_POOL.map(calculate_digest_pool, [ c_list ])
         
     for d in c_list[0]:
+        if d is None:
+            continue
+
         cache_render_chart_version(cache, _repo, d)
 
     for c in cache['yaml_chart_version']:
@@ -316,6 +344,8 @@ def cache_rebuild_repo_charts(_repo):
     cache_render(cache)
 
     CACHE['index'][_repo]=cache
+
+#    log_print('INFO:','cache_rebuild_repo_charts('+ _repo+') finish')
                     
 def put_file(_repo, _extension, _req_file):
     global CHARTHALL_ALLOW_OVERWRITE
@@ -382,6 +412,24 @@ def request_post_api_repo_charts(_repo, _req_chart, _req_prov):
     finally:
         CACHE['mutexes'][_repo].release()
             
+    return ('{"saved":true}', 201)
+
+def request_post_api_repo_prov(_repo, _req_prov):
+
+    if _req_prov is None:
+        return ('{"saved":false}', 400)
+
+    try:
+        put_file(_repo, '.tgz.prov', _req_prov)
+    except Exception as e:
+        log_print(
+            'ERROR', 'request_post_api_repo_prov({repo}): {msg}'.format(
+                repo=_repo,
+                msg=str(e)
+            )
+        )
+        return('{"saved":false}', 400)
+
     return ('{"saved":true}', 201)
 
 def request_get_repo_charts_file(_repo, _file):
@@ -485,13 +533,22 @@ def request_get_api_repo_charts(_repo):
 
     return CACHE['index'][_repo]['json']
 
+def request_head_api_repo_charts_chart(_repo, _chart):
+    if _repo not in CACHE['index']:
+        return ('{{"error":"{repo} not found"}}'.format(repo=_repo), 404)
+
+    if _chart not in CACHE['index'][_repo]['json_chart_version']:
+        return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
+
+    return ('{}', 200)
+
 def request_head_api_repo_charts_chart_version(_repo, _chart, _version):
     if _repo not in CACHE['index']:
         return ('{{"error":"{repo} not found"}}'.format(repo=_repo), 404)
 
     if _chart not in CACHE['index'][_repo]['json_chart_version']:
         return ('{{"error":"{repo}/{chart} not found"}}'.format(repo=_repo, chart=_chart), 404)
-        
+
     if _version not in CACHE['index'][_repo]['json_chart_version'][_chart]:
         return ('{{"error":"{repo}/{chart}-{version} not found"}}'.format(repo=_repo, chart=_chart, version=_version), 404)
 
@@ -668,6 +725,25 @@ serverInfo: {{}}
 
         return ( '{"error":"unknown method"}', 400 )
 
+    #POST /api/prov
+    @app.route('/api/<_repo>/post', methods=['POST'])
+    @auth.login_required(optional=allow_anonymous_nonget)
+    def route_POST_api_repo_prov(_repo):
+        @after_this_request
+        def add_header(_response):
+            _response.headers['X-Request-Id'] = current_request_id()
+            _response.headers['Content-Type']='application/json; charset=utf-8'
+            return _response
+
+        if request.method == 'POST':
+            req_prov=None
+            if CHARTHALL_PROV_POST_FORM_FIELD_NAME in request.files:
+                req_prov=request.files[CHARTHALL_PROV_POST_FORM_FIELD_NAME]
+
+            return request_post_api_repo_prov(_repo, req_prov)
+
+        return ( '{"error":"unknown method"}', 400 )
+
     #GET /api/charts/<_chart>
     @app.route('/api/<_repo>/charts/<_chart>', methods=['GET'])
     @auth.login_required(optional=allow_anonymous_get)
@@ -681,11 +757,14 @@ serverInfo: {{}}
         if request.method == 'GET':
             return request_get_api_repo_charts_chart(_repo,_chart)
 
+        if request.method == 'HEAD':
+            return request_head_api_repo_charts_chart(_repo, _chart)
+
         return ( '{"error":"unknown method"}', 400 )
 
     #GET /api/charts/<_chart>/
     #GET /api/charts/<chart>/<version>
-    @app.route('/api/<_repo>/charts/<_chart>/', methods=['GET'], defaults={'_version': None})
+    @app.route('/api/<_repo>/charts/<_chart>/', methods=['GET', 'HEAD'], defaults={'_version': None})
     @app.route("/api/<_repo>/charts/<_chart>/<_version>", methods=['GET', 'HEAD'])
     @auth.login_required(optional=allow_anonymous_get)
     def route_api_repo_charts_chart_version(_repo, _chart, _version):
@@ -696,6 +775,9 @@ serverInfo: {{}}
             return _response
         
         if request.method == 'HEAD':
+            if _version is None:
+                return request_head_api_repo_charts_chart(_repo, _chart)
+
             return request_head_api_repo_charts_chart_version(_repo, _chart, _version)
 
         if request.method == 'GET':
@@ -763,7 +845,6 @@ def create_app(
     global CHARTHALL_CHART_URL
     global CHARTHALL_DIGEST_POOL
 
-
     if _storage_local_rootdir is not None:
         CHARTHALL_STORAGE_LOCAL_ROOTDIR=_storage_local_rootdir
 
@@ -795,7 +876,7 @@ def create_app(
         except:
             pass
 
-    CHARTHALL_INDEX_LIMIT=200
+    CHARTHALL_INDEX_LIMIT=50
     if _index_limit is not None:
         try:
             CHARTHALL_INDEX_LIMIT=int(_index_limit)
