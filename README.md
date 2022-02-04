@@ -44,6 +44,38 @@ Code found here is like "Cutting the grass with machete" and definitely could be
 - relies solely on filenames and does not provide any additional data in index.yaml and other api calls
 
 ## Algorithms
+### extracting chart name and version
+    
+    #0.0.0 or 0.0.0.0 or 0.0.0.0.0 or
+    RE_VERSION=re.compile('([0-9]+\.){2,}[0-9]+')
+
+    def extract_name_version(_filename):
+        parts=_filename.split('-')
+
+        chart_name=[]
+        chart_version=[]
+    
+        isName=True
+        for p in parts:
+            if isName and RE_VERSION.match(p):
+                isName=False
+
+            if isName:
+                chart_name.append(p)
+            else:
+                chart_version.append(p)
+
+        #if isName:
+        #    return {
+        #        'chart': '-'.join(parts[:-1]), 
+        #        'version': parts[-1]
+        #    }
+
+        return {
+            'chart': '-'.join(chart_name), 
+            'version': '-'.join(chart_version)
+        }
+
 ### Indexing repositories
 There are 3 values that steer the indexing
 - CACHE_INTERVAL
@@ -52,23 +84,47 @@ There are 3 values that steer the indexing
 
 pseudocode example:
 
-    wile True:
+    digest_dispatcher():
+        indexers_no = min(floor(charts_no/1024)+1,INDEX_LIMIT)
+
+        spawn calculating digest indexers
+            perform digest calculation
+        terminate calculating digest indexers
+
+    index_all():
         get list of repos
         
         for each repo:
             get list of charts in repo
 
-            indexers_no = min(floor(charts_no/1024)+1,INDEX_LIMIT)
+            push the list of charts in repo to dispatcher                
 
-            spawn calculating digest indexers
-                perform digest calculation
-            terminate calculating digest indexers
+    indexing_thread():
+        ...
+        while True:
+            wait(CACHE_INTERVAL)
+            index_all()
 
-         wait(CACHE_INTERVAL)
+    main:
+        declare everything, functions, global values etc...
 
-*REMARK2*: signifficantly lowers memory footprint
+        spawn digest_dispatcher()
+        run index_all()
+        start indexing_thread()
+
+Why spawning dispatcher and it spawning indexers?
+
+Just after declaring everything spawned digest_dispatcher(), which is basicaly a fork of the application has the smallest footprint possible as it does not contain info about repositories yet. it is extremely usefull, because in order to calculate digests it forks itself again with limit of forks (INDEX_LIMIT) and then dispatches the forks with list of files to calculate digest off. after digest is calculated, forks of dispatcher are immediatelly dropped and memory comes back to the OS.
+
+Why indexrs number depends on number of charts/1024?
+
+Spawning and terminating indexer comes at a price of waiting for it to be started and terminated and as indexing time is an essence then we have to limit exposure to that. 1024 is an arbitrary number, chosen as is as a sweet spot between spawning indexer time and actual indexing time.
+
+*REMARK1*: signifficantly lowers memory footprint, becasue dispatcher is run only once when app has not indexed any data yet
 
 *REMARK2*: spawning and terminating indexers takes time (~1s), which is noticeable in case many small repositories becasue as it is stated in the algorithm those are spawned and terminated on repo processing basis.
+
+*REMARK3*: please have in mind that if INDEX_LIMIT is big and number of charts is big then charthall will hammer your OS and storage every time to index+CACHE_INTERVAL, because it always recalculates digests from scratch. please be reasonable when choosing those values.
 
 ## USAGE EXAMPLES
 
