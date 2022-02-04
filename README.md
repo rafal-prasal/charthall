@@ -1,5 +1,7 @@
 # ChartHall 0.0.5
 
+License: http://www.apache.org/licenses/LICENSE-2.0
+
 To some extent it is replacement to chartmuseum, which is great piece of software, but unfortunately has its flaws and limitations.
 
 Code found here is like "Cutting the grass with machete" and definitely could be prettier, but it simply gets the job done, so don't complain about it too much.
